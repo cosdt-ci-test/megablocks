@@ -3,9 +3,9 @@
 from typing import Any
 
 import torch
-from stk.backend.autocast import custom_bwd, custom_fwd
 
-from megablocks.backend import kernels
+from megablocks.backend import dispatch
+from megablocks.backend.device import custom_bwd, custom_fwd
 
 
 # Autograd wrapper for binned_scatter kernel.
@@ -28,14 +28,14 @@ class BinnedScatterOp(torch.autograd.Function):
         # TODO(tgale): Don't save 'x' for backwards if we don't need to
         # calculate the gradient w.r.t. 'weights'.
         ctx.save_for_backward(x, indices, weights, bins)
-        return kernels.binned_scatter(x, indices, weights, bins, top_k)
+        return dispatch.binned_scatter(x, indices, weights, bins, top_k)
 
     @staticmethod
     @custom_bwd
     def backward(ctx: Any, grad: torch.Tensor):
         grad = grad.contiguous()
         x, indices, weights, bins = ctx.saved_tensors
-        out = kernels.binned_gather(
+        out = dispatch.binned_gather(
             grad,
             indices,
             weights,
@@ -46,7 +46,7 @@ class BinnedScatterOp(torch.autograd.Function):
 
         wgrad = None
         if ctx.needs_input_grad[2]:
-            wgrad = kernels.binned_scatter_wgrad(
+            wgrad = dispatch.binned_scatter_wgrad(
                 x,
                 grad,
                 indices,

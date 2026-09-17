@@ -10,6 +10,7 @@ import torch.distributed as dist
 import torch.nn.functional as F
 
 import megablocks.grouped_gemm_util as grouped_gemm
+from megablocks.backend.device import default_device
 
 # Type annotation for in-place Tensor initialization function.
 InitFn = Union[Callable[[torch.Tensor], None], partial[torch.Tensor]]
@@ -52,7 +53,7 @@ class Arguments:
     # Initialization arguments.
     fp16: bool = True
     bf16: bool = False
-    device: Union[int, torch.device] = dataclasses.field(default_factory=torch.cuda.current_device)
+    device: Union[int, torch.device] = dataclasses.field(default_factory=default_device)
     init_method: InitFn = partial(torch.nn.init.normal_, mean=0.0, std=0.02)
     output_layer_init_method: InitFn = init_method
 
@@ -86,7 +87,7 @@ class Arguments:
                 raise ImportError('Triton is required for sparse MLP implementation')
 
         if self.__getattribute__('mlp_impl') == 'grouped':
-            grouped_gemm.assert_grouped_gemm_is_available()
+            grouped_gemm.assert_grouped_gemm_is_available(self.device)
 
         if self.shared_expert_hidden_size is None:
             self.shared_expert_hidden_size = self.ffn_hidden_size

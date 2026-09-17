@@ -3,7 +3,7 @@
 
 # build requirements
 [build-system]
-requires = ["setuptools < 79.0.0", "torch >= 2.7.0, < 2.7.1"]
+requires = ["setuptools < 79.0.0", "torch >= 2.7.0, < 2.8.0"]
 build-backend = "setuptools.build_meta"
 
 # Pytest
@@ -24,6 +24,8 @@ markers = [
     "remote",
     # whether the test requires a gpu
     "gpu",
+    # whether the test requires an Ascend NPU
+    "npu",
 ]
 
 filterwarnings = [

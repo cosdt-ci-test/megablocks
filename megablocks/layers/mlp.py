@@ -3,28 +3,34 @@
 
 from typing import Any
 
-import stk
-import stk.backend.triton_kernels
-import stk.ops
+try:
+    import stk
+    import stk.backend.triton_kernels
+    import stk.ops
+except ImportError:
+    stk = None
 import torch
 from packaging import version
 
 from megablocks import grouped_gemm_util as gg
+from megablocks.backend.device import autocast_device_type
 from megablocks.layers import common, gelu, mpu
 from megablocks.layers.activation_fn import act_fn
 from megablocks.layers.arguments import DEFAULT_ACTIVATION_FN, Arguments, InitFn
+
+_AMP_DEVICE = autocast_device_type()
 
 
 class ScaleGradient(torch.autograd.Function):
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_fwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_fwd(device_type=_AMP_DEVICE)
     def forward(ctx: Any, x: torch.Tensor, scale: float):
         ctx.scale = scale
         return x
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_bwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_bwd(device_type=_AMP_DEVICE)
     def backward(ctx: torch.Tensor, grad: torch.Tensor):
         return grad * ctx.scale, None
 
@@ -188,8 +194,10 @@ class MemoryOptimizedMLP(torch.autograd.Function):
     """Sparse MLP with manually scheduled memory reuse."""
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_fwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_fwd(device_type=_AMP_DEVICE)
     def forward(ctx, x, w1, w2, topo, activation_fn):
+        if stk is None:
+            raise ImportError('stanford-stk is required for mlp_impl="sparse"')
         # Cast inputs using ctx dtype from AMP
         if ctx._fwd_used_autocast:
             x = x.to(ctx._dtype)
@@ -230,7 +238,7 @@ class MemoryOptimizedMLP(torch.autograd.Function):
         return dsd_out
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_bwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_bwd(device_type=_AMP_DEVICE)
     def backward(ctx, ddsd_out):
         if (not ctx.needs_input_grad[0] or not ctx.needs_input_grad[1] or not ctx.needs_input_grad[2]):
             raise ValueError('Expected all MLP inputs to need grad.')
@@ -377,6 +385,8 @@ class SparseMLP(torch.nn.Module):
         return scale_gradient(w, self.gradient_scale)
 
     def forward(self, x, topo):
+        if stk is None:
+            raise ImportError('stanford-stk is required for mlp_impl="sparse"')
         w1, w2 = self.scale_grad(self.w1), self.scale_grad(self.w2)
         w1, w2 = resolve_dtensor(w1), resolve_dtensor(w2)
         if self.args.memory_optimized_mlp:
@@ -398,7 +408,7 @@ class MemoryOptimizedGroupedMLP(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_fwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_fwd(device_type=_AMP_DEVICE)
     def forward(ctx, x, w1, w2, batch_sizes, activation_fn):
         # Cast inputs using ctx dtype from AMP
         if ctx._fwd_used_autocast:
@@ -431,7 +441,7 @@ class MemoryOptimizedGroupedMLP(torch.autograd.Function):
         return dsd_out
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_bwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_bwd(device_type=_AMP_DEVICE)
     def backward(ctx: Any, ddsd_out: torch.Tensor):
         if (not ctx.needs_input_grad[0] or not ctx.needs_input_grad[1] or not ctx.needs_input_grad[2]):
             raise ValueError('Expected all MLP inputs to need grad.')

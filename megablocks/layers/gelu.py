@@ -1,9 +1,17 @@
 # Copyright 2024 Databricks
 # SPDX-License-Identifier: Apache-2.0
 
-import stk
+from typing import TYPE_CHECKING
+
+try:
+    import stk
+except ImportError:
+    stk = None
 import torch
 import torch.nn.functional as F
+
+if TYPE_CHECKING:
+    from stk import Matrix
 
 
 @torch.jit.script
@@ -13,9 +21,9 @@ def _gelu_backward_inplace(g, x):
     return g.mul_(ff)
 
 
-def gelu_backward_(grad: stk.Matrix, x: stk.Matrix):
+def gelu_backward_(grad: 'Matrix', x: 'Matrix'):
     # NOTE: The two sparse matrices must have the same topology.
-    if isinstance(grad, stk.Matrix) and isinstance(x, stk.Matrix):
+    if stk is not None and isinstance(grad, stk.Matrix) and isinstance(x, stk.Matrix):
         return stk.Matrix(
             x.size(),
             _gelu_backward_inplace(grad.data, x.data),
@@ -29,7 +37,9 @@ def gelu_backward_(grad: stk.Matrix, x: stk.Matrix):
     return _gelu_backward_inplace(grad, x)
 
 
-def gelu(x: stk.Matrix):
+def gelu(x: 'Matrix'):
+    if stk is None:
+        raise ImportError('stanford-stk is required for mlp_impl="sparse"')
     assert isinstance(x, stk.Matrix)
     return stk.Matrix(
         x.size(),

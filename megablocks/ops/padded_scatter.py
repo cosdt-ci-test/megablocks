@@ -3,9 +3,9 @@
 from typing import Any
 
 import torch
-from stk.backend.autocast import custom_bwd, custom_fwd
 
-from megablocks.backend import kernels
+from megablocks.backend import dispatch
+from megablocks.backend.device import custom_bwd, custom_fwd
 
 
 # Autograd wrapper for padded_scatter kernel.
@@ -34,7 +34,7 @@ class PaddedScatterOp(torch.autograd.Function):
         )
         ctx.top_k = top_k
         ctx.x_shape = x.shape
-        return kernels.padded_scatter(
+        return dispatch.padded_scatter(
             x,
             indices,
             bin_ids,
@@ -53,7 +53,7 @@ class PaddedScatterOp(torch.autograd.Function):
         indices, bin_ids, weights, bins, padded_bins = saved_tensors[:5]
         dgrad = None
         if ctx.needs_input_grad[0]:
-            dgrad = kernels.padded_gather(
+            dgrad = dispatch.padded_gather(
                 grad,
                 indices,
                 bin_ids,
@@ -66,7 +66,7 @@ class PaddedScatterOp(torch.autograd.Function):
         wgrad = None
         if ctx.needs_input_grad[3]:  # need wgrad
             x = saved_tensors[-1]
-            wgrad = kernels.padded_scatter_wgrad(
+            wgrad = dispatch.padded_scatter_wgrad(
                 x,
                 grad,
                 indices,

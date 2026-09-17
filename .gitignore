@@ -163,3 +163,6 @@ package-lock.json
 
 # pycharm
 .idea/
+
+# triton-ascend kernel cache used by tests_ascend
+tests_ascend/.triton_cache/

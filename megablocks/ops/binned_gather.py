@@ -3,9 +3,9 @@
 from typing import Any
 
 import torch
-from stk.backend.autocast import custom_bwd, custom_fwd
 
-from megablocks.backend import kernels
+from megablocks.backend import dispatch
+from megablocks.backend.device import custom_bwd, custom_fwd
 
 
 # Autograd wrapper for binned_gather kernel.
@@ -23,14 +23,14 @@ class BinnedGatherOp(torch.autograd.Function):
     ):
         ctx.save_for_backward(indices, bins)
         ctx.top_k = top_k
-        return kernels.binned_gather(x, indices, None, bins, bin_size, top_k)
+        return dispatch.binned_gather(x, indices, None, bins, bin_size, top_k)
 
     @staticmethod
     @custom_bwd
     def backward(ctx: Any, grad: torch.Tensor):
         grad = grad.contiguous()
         indices, bins = ctx.saved_tensors
-        out = kernels.binned_scatter(grad, indices, None, bins, ctx.top_k)
+        out = dispatch.binned_scatter(grad, indices, None, bins, ctx.top_k)
         return out, None, None, None, None
 
 

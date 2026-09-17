@@ -20,4 +20,7 @@ test-dist:
 test-dist-gpu:
 	$(PYTHON) -m composer.cli.launcher -n $(WORLD_SIZE) --master_port $(MASTER_PORT) $(EXTRA_LAUNCHER_ARGS) -m $(PYTEST) -m gpu $(EXTRA_ARGS)
 
-.PHONY: test test-gpu test-dist test-dist-gpu
+test-ascend:
+	TRITON_ALL_BLOCKS_PARALLEL=1 TRITON_CACHE_DIR=$(CURDIR)/tests_ascend/.triton_cache $(PYTHON) -m $(PYTEST) tests_ascend -sv -o addopts="" $(EXTRA_ARGS)
+
+.PHONY: test test-gpu test-dist test-dist-gpu test-ascend

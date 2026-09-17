@@ -4,9 +4,9 @@
 from typing import Any, Optional
 
 import torch
-from stk.backend.autocast import custom_bwd, custom_fwd
 
-from megablocks.backend import kernels
+from megablocks.backend import dispatch
+from megablocks.backend.device import custom_bwd, custom_fwd
 
 
 # Autograd wrapper for scatter kernel.
@@ -27,7 +27,7 @@ class ScatterOp(torch.autograd.Function):
         ctx.save_for_backward(indices, bin_ids, weights, bins, *maybe_x)
         ctx.top_k = top_k
         ctx.x_shape = x.shape
-        return kernels.scatter(x, indices, bin_ids, weights, bins, top_k)
+        return dispatch.scatter(x, indices, bin_ids, weights, bins, top_k)
 
     @staticmethod
     @custom_bwd
@@ -38,7 +38,7 @@ class ScatterOp(torch.autograd.Function):
         indices, bin_ids, weights, bins = saved_tensors[:4]
         dgrad = None
         if ctx.needs_input_grad[0]:
-            dgrad = kernels.gather(
+            dgrad = dispatch.gather(
                 grad,
                 indices,
                 bin_ids,
@@ -50,7 +50,7 @@ class ScatterOp(torch.autograd.Function):
         wgrad = None
         if ctx.needs_input_grad[3]:  # need wgrad
             x = saved_tensors[-1]
-            wgrad = kernels.scatter_wgrad(
+            wgrad = dispatch.scatter_wgrad(
                 x,
                 grad,
                 indices,
