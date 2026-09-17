@@ -3,9 +3,9 @@
 from typing import Any
 
 import torch
-from stk.backend.autocast import custom_bwd, custom_fwd
 
-from megablocks.backend import kernels
+from megablocks.backend import dispatch
+from megablocks.backend.device import custom_bwd, custom_fwd
 
 
 # Autograd wrapper for padded_gather kernel.
@@ -24,7 +24,7 @@ class PaddedGatherOp(torch.autograd.Function):
     ):
         ctx.save_for_backward(indices, bin_ids, bins, padded_bins)
         ctx.top_k = top_k
-        return kernels.padded_gather(
+        return dispatch.padded_gather(
             x,
             indices,
             bin_ids,
@@ -40,7 +40,7 @@ class PaddedGatherOp(torch.autograd.Function):
         grad = grad.contiguous()
 
         indices, bin_ids, bins, padded_bins = ctx.saved_tensors
-        out = kernels.padded_scatter(
+        out = dispatch.padded_scatter(
             grad,
             indices,
             bin_ids,

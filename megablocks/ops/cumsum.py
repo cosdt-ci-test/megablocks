@@ -7,12 +7,14 @@ from typing import Any
 # extensions. Otherwise libc10.so cannot be found.
 import torch
 
-# Wrap this in a try-block with better error message and
-# instructions for building the c++ operations.
+from megablocks.backend import dispatch
+
 try:
     import megablocks_ops as ops  # type: ignore
-except ModuleNotFoundError as e:
-    raise ModuleNotFoundError("No module named 'megablocks_ops'.") from e
+    _ops_import_error = None
+except ImportError as error:
+    ops = None
+    _ops_import_error = error
 
 
 # Autograd wrappers for cumsum kernels.
@@ -21,6 +23,8 @@ class ExclusiveCumsumOp(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx: Any, x: torch.Tensor, dim: int):
+        if ops is None:
+            raise ImportError('megablocks_ops is unavailable; build the c++ operations.') from _ops_import_error
         if len(x.size()) == 1:
             x = x.view([1, -1])
             out = torch.empty_like(x)
@@ -38,14 +42,7 @@ class InclusiveCumsumOp(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx: Any, x: torch.Tensor, dim: int) -> torch.Tensor:
-        if len(x.size()) == 1:
-            x = x.view([1, -1])
-            out = torch.empty_like(x)
-            ops.inclusive_cumsum(x, 1, out)
-            return out.squeeze()
-        out = torch.empty_like(x)
-        ops.inclusive_cumsum(x, dim, out)
-        return out
+        return dispatch.inclusive_cumsum(x, dim)
 
 
 inclusive_cumsum = InclusiveCumsumOp.apply

@@ -7,12 +7,12 @@ from typing import Any
 # extensions. Otherwise libc10.so cannot be found.
 import torch
 
-# Wrap this in a try-block with better error message and
-# instructions for building the c++ operations.
 try:
     import megablocks_ops as ops  # type: ignore
-except ModuleNotFoundError as e:
-    raise ModuleNotFoundError("No module named 'megablocks_ops'.") from e
+    _ops_import_error = None
+except ImportError as error:
+    ops = None
+    _ops_import_error = error
 
 
 # Autograd wrapper for topology kernel.
@@ -27,6 +27,8 @@ class TopologyOp(torch.autograd.Function):
         output_block_rows: int,
         output_block_columns: int,
     ):
+        if ops is None:
+            raise ImportError('megablocks_ops is unavailable; build the c++ operations.') from _ops_import_error
         out = torch.empty(
             output_block_rows * output_block_columns,
             dtype=torch.int16,
