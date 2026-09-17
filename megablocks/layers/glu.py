@@ -1,10 +1,14 @@
 # Copyright 2024 Databricks
 # SPDX-License-Identifier: Apache-2.0
 
-import stk.ops
+try:
+    import stk.ops
+except ImportError:
+    stk = None
 import torch
 
 from megablocks import grouped_gemm_util as gg
+from megablocks.backend.device import autocast_device_type
 from megablocks.layers import common, mpu
 from megablocks.layers.activation_fn import act_fn
 from megablocks.layers.arguments import Arguments
@@ -14,6 +18,8 @@ from megablocks.layers.mlp import (
     create_dmoe_expert_weights,
     resolve_dtensor,
 )
+
+_AMP_DEVICE = autocast_device_type()
 
 
 class SparseGLU(SparseMLP):
@@ -45,6 +51,8 @@ class SparseGLU(SparseMLP):
         )
 
     def forward(self, x, topo):
+        if stk is None:
+            raise ImportError('stanford-stk is required for mlp_impl="sparse"')
         if self.args.memory_optimized_mlp:
             raise NotImplementedError(
                 'Memory optimized implementation not yet supported with GLU with sparse kernels.',
@@ -67,7 +75,7 @@ class MemoryOptimizedGroupedGLU(torch.autograd.Function):
     """GroupedMLP with manually scheduled memory reuse."""
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_fwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_fwd(device_type=_AMP_DEVICE)
     def forward(ctx, x, w1, v1, w2, batch_sizes, activation_fn):
         # Cast inputs using ctx dtype from AMP
         if ctx._fwd_used_autocast:
@@ -102,7 +110,7 @@ class MemoryOptimizedGroupedGLU(torch.autograd.Function):
         return dsd_out
 
     @staticmethod
-    @torch.amp.autocast_mode.custom_bwd(device_type='cuda')
+    @torch.amp.autocast_mode.custom_bwd(device_type=_AMP_DEVICE)
     def backward(ctx, ddsd_out):
         if (not ctx.needs_input_grad[0] or not ctx.needs_input_grad[1] or not ctx.needs_input_grad[2]):
             raise ValueError('Expected all MLP inputs to need grad.')

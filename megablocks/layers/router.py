@@ -3,6 +3,7 @@
 from typing import Any
 
 import torch
+import torch.nn.functional as F
 
 from megablocks.layers import common
 from megablocks.layers.arguments import Arguments
@@ -93,10 +94,17 @@ class LearnedRouter(torch.nn.Module):
         if self.training and self.args.moe_jitter_eps is not None:
             x = x * self.jitter(x)
 
-        logits = self.layer(x.view(-1, x.shape[-1]))
-        _save_router_logits(logits, self.args)
+        hidden = x.view(-1, x.shape[-1])
+        orig_dtype = hidden.dtype
+        if hidden.device.type == 'npu' and orig_dtype != torch.float32:
+            logits = F.linear(hidden.float(), self.layer.weight.float())
+        else:
+            logits = self.layer(hidden)
+        _save_router_logits(logits.to(orig_dtype), self.args)
         scores = logits.softmax(dim=-1)
         expert_weights, expert_indices = self._top_k(scores)
+        expert_weights = expert_weights.to(orig_dtype)
+        scores = scores.to(orig_dtype)
         if self.args.moe_normalize_expert_weights:
             expert_weights = expert_weights / torch.norm(
                 expert_weights,

@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
-import stk.ops
+try:
+    import stk.ops
+except ImportError:
+    stk = None
 import torch
-from stk import Matrix
 
 import megablocks.ops as ops
 from megablocks.layers import common, dmlp_registry, moe, mpu
@@ -66,6 +68,8 @@ class ParallelDroplessMLP(moe.ParallelMLP):
         return column_indices_t, offsets_t, block_offsets_t
 
     def topology(self, x, padded_bins):
+        if stk is None:
+            raise ImportError('stanford-stk is required for mlp_impl="sparse"')
         padded_tokens, _ = x.size()
         assert padded_tokens % self.blocking == 0
         if self.ffn_hidden_size % self.blocking != 0:
@@ -270,14 +274,17 @@ class ParallelDroplessMLP(moe.ParallelMLP):
     ):
 
         # Route the tokens for MoE computation.
+        orig_dtype = x.dtype
         x = x.view(-1, x.shape[-1])
         x = ops.gather(x, indices, bin_ids, bins, top_k)
 
         # Perform the expert computation.
         x = self.mlp(x, tokens_per_expert)
 
-        # Un-route the data for the MoE output.
-        return ops.scatter(x, indices, bin_ids, expert_weights, bins, top_k)
+        # Un-route the data for the MoE output. NPU grouped GEMM may
+        # return fp32 intermediates; restore the token dtype.
+        out = ops.scatter(x, indices, bin_ids, expert_weights, bins, top_k)
+        return out.to(orig_dtype)
 
     def forward_once(self, x, expert_weights, top_experts):
         if self.args.mlp_impl == 'sparse':
