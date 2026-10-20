@@ -1,0 +1,29 @@
+# Pyrefly scope for the Ascend dMoE example (examples/dmoe_lm) and its smoke test.
+# Full type checking; run from an environment that has torch/megablocks importable
+# (the library itself is out of scope here). `data`/`model`/`train`/`generate`
+# resolve through the example directory on the search path.
+project-includes = [
+    "examples/dmoe_lm/**/*.py",
+    "tests_ascend/test_example.py",
+]
+search-path = [
+    "examples/dmoe_lm",
+    ".",
+]
+python-version = "3.10.0"
+
+# Strict gates for the example code: no Any (explicit or implicit), everything
+# annotated, no stale suppression comments.
+[errors]
+explicit-any = "error"
+implicit-any = "error"
+implicit-any-parameter = "error"
+implicit-any-attribute = "error"
+implicit-any-empty-container = "error"
+implicit-any-type-argument = "error"
+unannotated-attribute = "error"
+unannotated-parameter = "error"
+unannotated-return = "error"
+untyped-import = "error"
+unused-ignore = "error"
+unimported-directive = "error"
