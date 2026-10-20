@@ -166,3 +166,8 @@ package-lock.json
 
 # triton-ascend kernel cache used by tests_ascend
 tests_ascend/.triton_cache/
+
+# dMoE example artifacts
+examples/dmoe_lm/data/
+examples/dmoe_lm/checkpoints/
+examples/dmoe_lm/.triton_cache/
